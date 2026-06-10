@@ -647,56 +647,70 @@ function setLoadMsg(msg) {
   if (el) el.textContent = msg;
 }
 
-async function loadData(forceRefresh) {
+// JSONP 模式，繞過 GitHub Pages ↔ Apps Script 的 CORS 限制
+function loadData(forceRefresh) {
   const overlay = document.getElementById('loading-overlay');
   if (overlay) overlay.style.display = 'flex';
 
-  // 如果沒設定 API_URL，直接用內建資料（離線模式）
   if (!API_URL) {
-    console.warn('未設定 API_URL，使用離線靜態資料');
     if (overlay) overlay.style.display = 'none';
     buildP1(); renderP2();
     return;
   }
 
-  try {
-    setLoadMsg('連線中…');
-    const url = API_URL + (forceRefresh ? '?refresh=1' : '');
-    const res  = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
+  setLoadMsg('連線中…');
 
-    if (!json.ok) throw new Error(json.error || '未知錯誤');
+  const cbName = '_dashCb_' + Date.now();
+  const timer  = setTimeout(() => {
+    delete window[cbName];
+    showApiError('連線逾時，請重試');
+    if (overlay) overlay.style.display = 'none';
+    buildP1(); renderP2();
+  }, 30000);
 
-    const d = json.data;
-    projects = d.projects || [];
-    if (d.trend && d.trend.labels && d.trend.labels.length) {
-      monthlyTrend = d.trend;
+  window[cbName] = function(json) {
+    clearTimeout(timer);
+    delete window[cbName];
+    const old = document.getElementById('_jsonp_s');
+    if (old) old.remove();
+
+    if (!json.ok) {
+      showApiError(json.error || '未知錯誤');
+    } else {
+      const d = json.data || {};
+      projects = d.projects || [];
+      if (d.trend && d.trend.labels && d.trend.labels.length) monthlyTrend = d.trend;
+      const label = document.getElementById('today-label');
+      if (label && json.updated) {
+        const upd = new Date(json.updated);
+        label.innerHTML = '截至 ' + upd.toLocaleDateString('zh-TW') +
+          ' &nbsp;<span style="font-size:11px;color:#94a3b8;">資料更新：' +
+          upd.toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}) + '</span>';
+      }
     }
+    if (overlay) overlay.style.display = 'none';
+    buildP1(); renderP2();
+  };
 
-    // 顯示最後更新時間
-    const label = document.getElementById('today-label');
-    if (label && json.updated) {
-      const upd = new Date(json.updated);
-      label.innerHTML =
-        '截至 ' + upd.toLocaleDateString('zh-TW') +
-        ' &nbsp;<span style="font-size:11px;color:#94a3b8;">資料更新：' +
-        upd.toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}) +
-        '</span>';
-    }
+  const s = document.createElement('script');
+  s.id  = '_jsonp_s';
+  s.src = API_URL + '?callback=' + cbName + (forceRefresh ? '&refresh=1' : '');
+  s.onerror = () => {
+    clearTimeout(timer); delete window[cbName];
+    showApiError('無法連線');
+    if (overlay) overlay.style.display = 'none';
+    buildP1(); renderP2();
+  };
+  document.head.appendChild(s);
+}
 
-  } catch (err) {
-    console.error('API 載入失敗：', err);
-    // 顯示錯誤 banner，但仍嘗試顯示現有資料
-    const banner = document.createElement('div');
-    banner.style.cssText = 'background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:10px 20px;font-size:13px;text-align:center;';
-    banner.innerHTML = '⚠️ 無法從 Google Sheets 載入最新資料（' + err.message + '）。顯示上次快取資料。';
-    document.body.insertBefore(banner, document.body.firstChild);
-  }
-
-  if (overlay) overlay.style.display = 'none';
-  buildP1();
-  renderP2();
+function showApiError(msg) {
+  document.querySelectorAll('.api-err').forEach(e => e.remove());
+  const b = document.createElement('div');
+  b.className = 'api-err';
+  b.style.cssText = 'background:#fef2f2;border-bottom:1px solid #fecaca;color:#b91c1c;padding:9px 20px;font-size:13px;text-align:center;position:sticky;top:56px;z-index:50;';
+  b.textContent = '⚠️ 無法從 Google Sheets 載入最新資料（' + msg + '）';
+  document.body.insertBefore(b, document.body.children[1]);
 }
 
 // init

@@ -23,25 +23,39 @@ const SHEET_IDS = {
 const CACHE_KEY = 'dashboard_v1';
 const CACHE_TTL = 300; // 5 分鐘
 
-// ─── 進入點 ─────────────────────────────────────────────────────────────
+// ─── 進入點（支援 JSONP，解決 CORS 問題） ──────────────────────────────
 function doGet(e) {
-  const out = ContentService.createTextOutput();
-  out.setMimeType(ContentService.MimeType.JSON);
-  const refresh = e && e.parameter && e.parameter.refresh === '1';
+  const refresh  = e && e.parameter && e.parameter.refresh === '1';
+  const callback = e && e.parameter && e.parameter.callback; // JSONP callback name
 
+  let body;
   try {
     if (!refresh) {
       const cached = CacheService.getScriptCache().get(CACHE_KEY);
-      if (cached) { out.setContent(cached); return out; }
+      if (cached) {
+        body = cached;
+      }
     }
-    const data = buildAll();
-    const json = JSON.stringify({ ok: true, updated: new Date().toISOString(), data });
-    CacheService.getScriptCache().put(CACHE_KEY, json, CACHE_TTL);
-    out.setContent(json);
+    if (!body) {
+      const data = buildAll();
+      body = JSON.stringify({ ok: true, updated: new Date().toISOString(), data });
+      CacheService.getScriptCache().put(CACHE_KEY, body, CACHE_TTL);
+    }
   } catch (err) {
-    out.setContent(JSON.stringify({ ok: false, error: err.message, stack: err.stack }));
+    body = JSON.stringify({ ok: false, error: err.message });
   }
-  return out;
+
+  // JSONP 模式：包成 callback(...)
+  if (callback) {
+    return ContentService
+      .createTextOutput(callback + '(' + body + ')')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+
+  // 一般 JSON 模式
+  return ContentService
+    .createTextOutput(body)
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 // ─── 工具 ────────────────────────────────────────────────────────────────
