@@ -239,7 +239,12 @@ tr:hover td{background:#f8fafc;}
     <div class="page-sub">依付款條件與專案進程推算各月應收金額</div>
   </div>
   <div class="card">
-    <div class="card-head"><div class="card-title">⚙️ 特殊收款規則</div></div>
+    <div class="card-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <div class="card-title">⚙️ 特殊收款規則</div>
+      <input id="rules-search" type="text" placeholder="搜尋專案名稱…"
+        oninput="renderRules()"
+        style="padding:5px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;width:200px;outline:none;"/>
+    </div>
     <div class="tbl-wrap">
       <table>
         <thead><tr><th>專案名稱</th><th>合約 / 財務特殊事項</th></tr></thead>
@@ -516,12 +521,20 @@ function renderP2(){
 // ══════════════════════════════════════════════════════
 // PAGE 3
 // ══════════════════════════════════════════════════════
+function renderRules(){
+  const kw=(document.getElementById('rules-search')||{}).value||'';
+  const all=projects.filter(p=>p.rule&&p.rule!=='—');
+  const list=kw
+    ? all.filter(p=>p.name.includes(kw)||p.rule.includes(kw))
+    : all.slice(0,10);
+  document.getElementById('rules-body').innerHTML=list.map(p=>
+    `<tr><td><strong>${p.name}</strong></td>
+     <td style="white-space:normal;font-size:12px;">${p.rule}</td></tr>`
+  ).join('');
+}
+
 function renderP3(){
-  document.getElementById('rules-body').innerHTML=
-    projects.filter(p=>p.rule&&p.rule!=='—').map(p=>
-      `<tr><td><strong>${p.name}</strong></td>
-       <td style="white-space:normal;font-size:12px;">${p.rule}</td></tr>`
-    ).join('');
+  renderRules();
 
   const months=[];
   for(let i=0;i<8;i++){
