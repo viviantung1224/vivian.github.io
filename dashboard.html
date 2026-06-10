@@ -151,7 +151,7 @@ tr:hover td{background:#f8fafc;}
     <div class="tbl-wrap">
       <table>
         <thead><tr>
-          <th>專案名稱</th><th>PM</th><th>進程</th>
+          <th style="width:40px;text-align:center;">#</th><th>專案名稱</th><th>PM</th><th>進程</th>
           <th>需求總數</th><th>目前供給</th><th>剩餘</th><th>完成率</th>
         </tr></thead>
         <tbody id="supply-body"></tbody>
@@ -356,12 +356,13 @@ function buildP1() {
     </div>`).join('');
 
   // 影片供給表
-  const supplyRows = eligible.map(p=>{
+  const supplyRows = eligible.map((p,i)=>{
     const remain = p.video_demand - p.video_supply;
     const pct    = p.video_demand>0 ? Math.min(100,Math.round(p.video_supply/p.video_demand*100)) : 0;
     const barCls = remain<3?'bar-crit':remain<8?'bar-warn':'bar-ok';
     const remCls = remain<3?'style="color:#b91c1c;font-weight:700;"':remain<8?'style="color:#d97706;font-weight:600;"':'';
     return `<tr>
+      <td class="mono" style="text-align:center;color:#94a3b8;">${i+1}</td>
       <td><strong>${p.name}</strong></td>
       <td>${p.pm}</td>
       <td><span class="prog">${p.progress}</span></td>
