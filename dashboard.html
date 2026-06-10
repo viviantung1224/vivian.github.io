@@ -299,7 +299,7 @@ const STA = {
 // ── helpers ───────────────────────────────────────────
 const addM = (s,n) => { const d=new Date(s); d.setMonth(d.getMonth()+n); return d; };
 const addD = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
-const fmtDate = d => { if(!d) return '—'; const x=typeof d==='string'?new Date(d):d; return x.toISOString().slice(0,10); };
+const fmtDate = d => { if(!d) return '—'; const x=typeof d==='string'?new Date(d):d; if(isNaN(x)) return '—'; return x.toISOString().slice(0,10); };
 const fmtM  = d => `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}`;
 const fmtMoney = n => n>0 ? '$'+Math.round(n).toLocaleString() : '—';
 const daysDiff = (d1,d2) => Math.round((d2-d1)/86400000);
@@ -309,6 +309,7 @@ function getCloseDate(p) {
   if ((p.video_demand - p.video_supply) < 3 && p.last_published) {
     return addD(p.last_published, 14);
   }
+  if (!p.start) return null;
   return addM(p.start, 7);
 }
 
