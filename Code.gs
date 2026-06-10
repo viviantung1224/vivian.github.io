@@ -114,6 +114,8 @@ function buildAll() {
       rule:     fin.rule || '—',
       video_demand:   vid.demand,
       video_supply:   vid.supply,
+      video_ac_done:  vid.ac_done,
+      video_abandoned:vid.abandoned,
       last_published: vid.lastPublished,
       payments: [],
     });
@@ -207,14 +209,18 @@ function buildVideoAndTrend() {
 
   for (const r of rows(sh(SHEET_IDS.editing, '剪輯排程總表'), 3, 17)) {
     const pname = c(r[0]); if (!pname) continue;
-    if (!videoMap[pname]) videoMap[pname] = { demand:0, supply:0, lastPublished:null, _latestR:'', _dates:[] };
+    if (!videoMap[pname]) videoMap[pname] = { demand:0, supply:0, ac_done:0, abandoned:0, lastPublished:null, _latestR:'', _dates:[] };
 
     videoMap[pname].demand++;
     const batch     = c(r[2]);
     const planDate  = r[11];
+    const acDone    = r[12]; // M欄 AC已完成
+    const abandoned = r[7];  // H欄 確定放棄
     const published = r[16];
 
     if (batch && batch > videoMap[pname]._latestR) videoMap[pname]._latestR = batch;
+    if (acDone    === true || acDone    === 1) videoMap[pname].ac_done++;
+    if (abandoned === true || abandoned === 1) videoMap[pname].abandoned++;
 
     if (published === true || published === 1) {
       videoMap[pname].supply++;

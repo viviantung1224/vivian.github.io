@@ -152,7 +152,7 @@ tr:hover td{background:#f8fafc;}
       <table>
         <thead><tr>
           <th style="width:40px;text-align:center;">#</th><th>專案名稱</th><th>PM</th><th>進程</th>
-          <th>需求總數</th><th>目前供給</th><th>剩餘</th><th>完成率</th>
+          <th>需求總數</th><th>上架</th><th>AC完成-放棄</th><th>剩餘</th><th>完成率</th>
         </tr></thead>
         <tbody id="supply-body"></tbody>
       </table>
@@ -368,6 +368,7 @@ function buildP1() {
       <td><span class="prog">${p.progress}</span></td>
       <td class="mono">${p.video_demand}</td>
       <td class="mono">${p.video_supply}</td>
+      <td class="mono">${(p.video_ac_done||0) - (p.video_abandoned||0)}</td>
       <td class="mono" ${remCls}>${remain}</td>
       <td>
         <div style="display:flex;align-items:center;gap:8px;">
