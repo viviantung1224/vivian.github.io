@@ -666,7 +666,7 @@ function loadData(forceRefresh) {
     showApiError('連線逾時，請重試');
     if (overlay) overlay.style.display = 'none';
     buildP1(); renderP2();
-  }, 30000);
+  }, 55000);
 
   window[cbName] = function(json) {
     clearTimeout(timer);

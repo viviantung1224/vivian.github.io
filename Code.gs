@@ -71,8 +71,10 @@ function dt(v) {
   const s = String(v).trim();
   return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0,10) : '';
 }
-function rows(ws, from) {
-  const lr = ws.getLastRow(), lc = ws.getLastColumn();
+// cols = 要讀的欄數（從第1欄起算），不傳則讀到最後一欄
+function rows(ws, from, cols) {
+  const lr = ws.getLastRow();
+  const lc = cols || ws.getLastColumn();
   if (lr < from || lc === 0) return [];
   return ws.getRange(from, 1, lr - from + 1, lc).getValues();
 }
@@ -88,8 +90,7 @@ function buildAll() {
   const staffMap  = buildStaff();
   const statusMap = buildStatus();
   const finMap    = buildFinance();
-  const videoMap  = buildVideo();
-  const trend     = buildTrend(videoMap);
+  const { videoMap, trend } = buildVideoAndTrend();
 
   const STATUS_ORDER = { active:0, waiting:1, rwaiting:2, pending:3, no:4, term:5, closed:6 };
   const projects = [];
@@ -126,10 +127,10 @@ function buildAll() {
   return { projects, trend };
 }
 
-// ─── 人員 ─────────────────────────────────────────────────────────────────
+// ─── 人員（只讀前 29 欄） ──────────────────────────────────────────────────
 function buildStaff() {
   const map = {};
-  for (const r of rows(sh(SHEET_IDS.project, '0.專案客戶資訊總表'), 3)) {
+  for (const r of rows(sh(SHEET_IDS.project, '0.專案客戶資訊總表'), 3, 29)) {
     if (!r[0]) continue;
     const pname = c(r[17]); if (!pname) continue;
     map[pname] = {
@@ -141,14 +142,14 @@ function buildStaff() {
   return map;
 }
 
-// ─── 狀態 ─────────────────────────────────────────────────────────────────
+// ─── 狀態（只讀前 13 欄） ──────────────────────────────────────────────────
 function buildStatus() {
   const STA = {
     '續約':'active','等結案':'waiting','續約等結案':'rwaiting',
     'Pending中':'pending','提前解約':'term','解約':'term','不續約':'no',
   };
   const map = {};
-  for (const r of rows(sh(SHEET_IDS.project, '專案總覽（戰時管理）'), 3)) {
+  for (const r of rows(sh(SHEET_IDS.project, '專案總覽（戰時管理）'), 3, 13)) {
     if (!r[0]) continue;
     const pname = c(r[2]); if (!pname) continue;
     map[pname] = STA[c(r[12])] || 'active';
@@ -156,15 +157,15 @@ function buildStatus() {
   return map;
 }
 
-// ─── 財務 ─────────────────────────────────────────────────────────────────
+// ─── 財務（限制欄寬） ──────────────────────────────────────────────────────
 function buildFinance() {
   const finSs = ss(SHEET_IDS.finance);
   const map = {};
 
-  function add(wsName, startRow, brandCol, totalCol, ruleCol) {
+  function add(wsName, startRow, brandCol, totalCol, ruleCol, maxCols) {
     const w = finSs.getSheetByName(wsName);
     if (!w) return;
-    for (const r of rows(w, startRow)) {
+    for (const r of rows(w, startRow, maxCols)) {
       const brand = c(r[brandCol]); if (!brand) continue;
       if (!map[brand]) map[brand] = { total:0, received:0, rule:'', renewals:0 };
       map[brand].total += n(r[totalCol]);
@@ -175,12 +176,12 @@ function buildFinance() {
     }
   }
 
-  add('簽約客戶資訊＆收款紀錄總表', 3, 3, 21, 17);  // 新約
-  add('第一次續約',                  3, 3, 23, 18);  // 第一次續約
-  add('第二次(含)以上續約',          3, 3, 19, null); // 第二次以上
+  add('簽約客戶資訊＆收款紀錄總表', 3, 3, 21, 17, 22);  // 新約：只讀前 22 欄
+  add('第一次續約',                  3, 3, 23, 18, 24);  // 第一次續約：前 24 欄
+  add('第二次(含)以上續約',          3, 3, 19, null, 20); // 第二次以上：前 20 欄
 
-  // 已收款
-  for (const r of rows(finSs.getSheetByName('收款流水帳'), 1)) {
+  // 已收款（只讀前 15 欄）
+  for (const r of rows(finSs.getSheetByName('收款流水帳'), 1, 15)) {
     if (!r[0] || c(r[0]) === '案號') continue;
     const brand = c(r[1]); if (!brand || brand === '品牌名稱') continue;
     if (r[12] && n(r[14]) > 0) {
@@ -192,52 +193,53 @@ function buildFinance() {
   return map;
 }
 
-// ─── 影片統計 ─────────────────────────────────────────────────────────────
-function buildVideo() {
-  const map = {};
-  for (const r of rows(sh(SHEET_IDS.editing, '剪輯排程總表'), 3)) {
-    const pname = c(r[0]); if (!pname) continue;
-    if (!map[pname]) map[pname] = { demand:0, supply:0, lastPublished:null, _latestR:'', _dates:[] };
-    map[pname].demand++;
-    const published = r[16];
-    if (published === true || published === 1 || published === 'TRUE') {
-      map[pname].supply++;
-      const ds = dt(r[11]); if (ds) map[pname]._dates.push(ds);
-    }
-    const batch = c(r[2]);
-    if (batch && batch > map[pname]._latestR) map[pname]._latestR = batch;
+// ─── 影片統計 + 月趨勢（合併成一次讀取，只讀前 17 欄） ────────────────────
+function buildVideoAndTrend() {
+  const now = new Date();
+  const months = [];
+  for (let i = 5; i >= 0; i--) {
+    const d  = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const ym = Utilities.formatDate(d, 'Asia/Taipei', 'yyyy-MM');
+    months.push({ label: ym.replace('-','/'), ym, editing: 0 });
   }
-  for (const v of Object.values(map)) {
+
+  const videoMap = {};
+
+  for (const r of rows(sh(SHEET_IDS.editing, '剪輯排程總表'), 3, 17)) {
+    const pname = c(r[0]); if (!pname) continue;
+    if (!videoMap[pname]) videoMap[pname] = { demand:0, supply:0, lastPublished:null, _latestR:'', _dates:[] };
+
+    videoMap[pname].demand++;
+    const batch     = c(r[2]);
+    const planDate  = r[11];
+    const published = r[16];
+
+    if (batch && batch > videoMap[pname]._latestR) videoMap[pname]._latestR = batch;
+
+    if (published === true || published === 1) {
+      videoMap[pname].supply++;
+      const ds = dt(planDate);
+      if (ds) {
+        videoMap[pname]._dates.push(ds);
+        const ym = ds.slice(0,7);
+        const m = months.find(x => x.ym === ym);
+        if (m) m.editing++;
+      }
+    }
+  }
+
+  for (const v of Object.values(videoMap)) {
     v.lastPublished = v._dates.length ? v._dates.sort().pop() : null;
     v.latestR = v._latestR.replace(/^R0*(\d+)/, 'R$1');
     delete v._dates; delete v._latestR;
   }
-  return map;
-}
 
-// ─── 月趨勢 ───────────────────────────────────────────────────────────────
-function buildTrend(videoMap) {
-  // 最近 6 個月剪輯量，從剪輯排程計算
-  const now = new Date();
-  const months = [];
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const ym = Utilities.formatDate(d, 'Asia/Taipei', 'yyyy-MM');
-    months.push({ label: ym.replace('-','/'), ym, editing:0, active:0 });
-  }
-
-  for (const r of rows(sh(SHEET_IDS.editing, '剪輯排程總表'), 3)) {
-    if (r[16] !== true && r[16] !== 1) continue;
-    const ds = dt(r[11]); if (!ds) continue;
-    const ym = ds.slice(0,7);
-    const m = months.find(x => x.ym === ym);
-    if (m) m.editing++;
-  }
-
-  return {
+  const trend = {
     labels:   months.map(m => m.label),
     editing:  months.map(m => m.editing),
-    shooting: months.map(() => 0), // 需接拍攝排程時更新
-    active:   months.map(() => 0), // 由前端計算
+    shooting: months.map(() => 0),
+    active:   months.map(() => 0),
   };
+
+  return { videoMap, trend };
 }
