@@ -124,9 +124,20 @@ tr:hover td{background:#f8fafc;}
     <button class="nav-btn" onclick="go('p3',this)">收款預估</button>
     <button class="nav-btn" onclick="go('p4',this)">人員案量</button>
   </nav>
+  <div style="margin-left:auto;">
+    <button onclick="loadData(true)" style="background:none;border:1px solid #334155;color:#94a3b8;font-size:12px;padding:5px 14px;border-radius:6px;cursor:pointer;transition:all .15s;" onmouseover="this.style.color='#fff';this.style.borderColor='#60a5fa'" onmouseout="this.style.color='#94a3b8';this.style.borderColor='#334155'">↺ 重新整理</button>
+  </div>
 </div>
 
 <!-- PAGE 1 -->
+<!-- Loading overlay -->
+<div id="loading-overlay" style="position:fixed;inset:0;background:rgba(15,23,42,.85);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
+  <div style="width:44px;height:44px;border:4px solid #334155;border-top-color:#3b82f6;border-radius:50%;animation:spin .8s linear infinite;"></div>
+  <div style="color:#e2e8f0;font-size:15px;font-weight:600;">資料載入中…</div>
+  <div id="loading-msg" style="color:#64748b;font-size:12px;"></div>
+</div>
+<style>@keyframes spin{to{transform:rotate(360deg);}}</style>
+
 <div id="p1" class="page active">
   <div class="page-heading">
     <div class="page-title">總覽</div>
@@ -259,6 +270,12 @@ tr:hover td{background:#f8fafc;}
 </div>
 
 <script>
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  ★ 填入你的 Apps Script 部署網址                                ║
+// ║    部署完成後，把 URL 貼到下方 API_URL 變數                     ║
+// ╚══════════════════════════════════════════════════════════════════╝
+const API_URL = ''; // ← 貼上 Apps Script 部署網址
+
 // ╔══════════════════════════════════════════════════════╗
 // ║  ★ 離職成員設定：把姓名加入此陣列，該列自動顯示灰底  ║
 // ║  範例：const departedMembers = ['BUBU', 'Leo'];      ║
@@ -266,7 +283,7 @@ tr:hover td{background:#f8fafc;}
 const departedMembers = ['BUBU','貫宇','忱平','Barry','小邱','佳瑩','珍妮','Leo','常祐','尚晏','得人','Sora','珮瑜','澤遠','芮綺'];
 
 // ── 常數 ──────────────────────────────────────────────
-const TODAY = new Date('2026-06-10');
+const TODAY = new Date();
 const EXCL  = ['no','term','closed','pending'];
 
 const STA = {
@@ -295,910 +312,10 @@ function getCloseDate(p) {
   return addM(p.start, 7);
 }
 
-// ── 專案資料 ─────────────────────────────────────────
-// video_demand : 合約影片需求總數
-// video_supply : 目前已供給（上架）數量
-// last_published : 最後一支影片上架日
-const projects = [
-  {
-    name:'哈哈哈雷律師', pm:'姵潔', planner:'伊之助',
-    publisher:'定哲', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'DaBao', producer:'柏愷',
-    status:'active', progress:'', start:'2023-12-14', renewals:0,
-    total:400000, received:105000, rule:'此專案為喆律的業配影片；付款條件：開發票後10天內支付',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'澤林毛髮', pm:'Ashley', planner:'睿閎',
-    publisher:'定哲', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'姍姍', producer:'振詠',
-    status:'waiting', progress:'', start:'2024-07-04', renewals:0,
-    total:1359000, received:1316700, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：無',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'真心皮膚科', pm:'姵潔', planner:'小邱',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'羽瑄', director:'姍姍', producer:'Min',
-    status:'active', progress:'', start:'2024-08-26', renewals:0,
-    total:972000, received:789600, rule:'開立條件：依照合約條件開立；付款條件：開發票後次月20日付款；備註：開發票後需主動於line群通知，但切記不要提及金額，且通知信附上發票畫面截圖；異業合作，分潤客戶',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'元佑集團', pm:'Ashley', planner:'睿閎',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'振詠', director:'DaBao', producer:'振詠',
-    status:'active', progress:'', start:'2025-01-09', renewals:0,
-    total:492000, received:456120, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：客戶希望12月再開始執行專案（ 合約已經簽回 ）',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'Michael', pm:'Ashley', planner:'Barry',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'振詠', director:'姍姍', producer:'振詠',
-    status:'active', progress:'', start:'2024-09-11', renewals:0,
-    total:684000, received:597240, rule:'昇宏(髮型麥可風)',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'潔衣家', pm:'姵潔', planner:'忱平',
-    publisher:'定哲', pm_asst:'姵潔',
-    sr_editor:'羽瑄', director:'DaBao', producer:'Leo',
-    status:'waiting', progress:'', start:'2024-10-24', renewals:0,
-    total:600000, received:629940, rule:'開立條件：依照合約條件開立；付款條件：開發票後60日內付款(30-60日內)；備註：無',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'黃杰律師', pm:'岑文', planner:'小邱',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'Barry', producer:'柏愷',
-    status:'active', progress:'', start:'2024-11-12', renewals:0,
-    total:0, received:0, rule:'—',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'東興飽包', pm:'Ashley', planner:'家訓',
-    publisher:'恩綺', pm_asst:'定哲',
-    sr_editor:'羽瑄', director:'DaBao', producer:'Min',
-    status:'active', progress:'', start:'2024-11-18', renewals:0,
-    total:792000, received:616350, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：無',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'陽光基金會', pm:'伃媗', planner:'忱平',
-    publisher:'恩綺', pm_asst:'伃媗',
-    sr_editor:'羽瑄', director:'DaBao', producer:'Min',
-    status:'active', progress:'', start:'2024-12-09', renewals:0,
-    total:492000, received:415800, rule:'合約是以「偉利科技」名義簽約；發票需以「偉利科技」開出，匯款也是入偉利的帳戶。；合約提到：專案啟動日後的30日內支付頭款',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'阿曼', pm:'伃媗', planner:'Barry',
-    publisher:'恩綺', pm_asst:'定哲',
-    sr_editor:'羽瑄', director:'Barry', producer:'Leo',
-    status:'active', progress:'', start:'2024-11-27', renewals:0,
-    total:492000, received:456120, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：無',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'怡世界', pm:'伃媗', planner:'睿閎',
-    publisher:'恩綺', pm_asst:'定哲',
-    sr_editor:'振詠', director:'Nic', producer:'柏愷',
-    status:'active', progress:'', start:'2025-01-15', renewals:0,
-    total:684000, received:662970, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：此合約為無成效計費',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'孫律', pm:'Ashley', planner:'家訓',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'DaBao', producer:'Min',
-    status:'active', progress:'', start:'2024-12-12', renewals:0,
-    total:0, received:0, rule:'—',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'小鈺', pm:'伃媗', planner:'Barry',
-    publisher:'伃媗', pm_asst:'伃媗',
-    sr_editor:'振詠', director:'姍姍', producer:'振詠',
-    status:'pending', progress:'', start:'2025-01-23', renewals:0,
-    total:300000, received:252000, rule:'開立條件：頭款2月開立；付款條件：開發票後10日內付款；備註：無',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'岳修女', pm:'Ashley', planner:'Leo',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'振詠', director:'DaBao', producer:'振詠',
-    status:'pending', progress:'', start:'2025-03-12', renewals:0,
-    total:684000, received:516600, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：無',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'沃醫學', pm:'Ashley', planner:'家訓',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'振詠', director:'姍姍', producer:'姍姍',
-    status:'active', progress:'', start:'2025-02-24', renewals:0,
-    total:1020000, received:703380, rule:'開立條件：首期發票2/14開立，預計4/11匯款 / 尾款等驗收後開立；付款條件：開發票後次次月10日付(同SEO)，首期付款日以客戶通知的為主；備註：無',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'尼斯診所', pm:'伃媗', planner:'常祐',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'DaBao', producer:'Min',
-    status:'active', progress:'', start:'2025-03-18', renewals:0,
-    total:480000, received:379575, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：無',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'李毅評醫師', pm:'Ashley', planner:'佳瑩',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'羽瑄', director:'姍姍', producer:'澤遠',
-    status:'waiting', progress:'', start:'2025-02-21', renewals:0,
-    total:0, received:0, rule:'—',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'MoreFit', pm:'伃媗', planner:'姍姍',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'姍姍', producer:'柏愷',
-    status:'active', progress:'', start:'2025-04-02', renewals:0,
-    total:300000, received:299250, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：無',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'哈波羅根', pm:'姵潔', planner:'尚晏',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'DaBao', producer:'澤遠',
-    status:'rwaiting', progress:'', start:'2025-04-09', renewals:0,
-    total:380000, received:353320, rule:'開立條件：依照合約條件開立；付款條件：開發票後次月底付款；備註：無',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'西門子', pm:'Ashley', planner:'常祐',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'振詠', director:'DaBao', producer:'振詠',
-    status:'active', progress:'', start:'2025-04-10', renewals:0,
-    total:760000, received:420000, rule:'開立條件：依照合約條件開立；付款條件：開發票後90日內付款；備註：無',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'瑞軒留遊學', pm:'姵潔', planner:'睿閎',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'DaBao', producer:'振詠',
-    status:'active', progress:'', start:'2025-05-07', renewals:0,
-    total:0, received:0, rule:'—',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'陳艾琳', pm:'伃媗', planner:'忱平',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'DaBao', producer:'柏愷',
-    status:'active', progress:'', start:'2025-05-08', renewals:0,
-    total:492000, received:456120, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：無',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'INNFACT', pm:'姵潔', planner:'DaBao',
-    publisher:'定哲', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'Barry', producer:'柏愷',
-    status:'active', progress:'', start:'2025-06-26', renewals:0,
-    total:492000, received:456120, rule:'發票抬頭：阡群企業有限公司（34461558）；開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：請以上述發票抬頭開立',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'文華花苑', pm:'姵潔', planner:'可盈',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'振詠', director:'DaBao', producer:'振詠',
-    status:'active', progress:'', start:'2025-05-19', renewals:0,
-    total:300000, received:252000, rule:'開立條件：依照合約條件開立；付款條件：固定每月15號或月底付款；備註：無',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'茉娜姿', pm:'姵潔', planner:'睿閎',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'Nic', producer:'柏愷',
-    status:'active', progress:'', start:'2025-06-04', renewals:0,
-    total:492000, received:380520, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：無',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'Chichis', pm:'伃媗', planner:'小邱',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'DaBao', producer:'柏愷',
-    status:'rwaiting', progress:'', start:'2025-06-17', renewals:0,
-    total:525000, received:456750, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：頭款會於7/15支付',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'聯耕當舖', pm:'姵潔', planner:'珍妮',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'DaBao', producer:'家洋',
-    status:'pending', progress:'', start:'2025-07-11', renewals:0,
-    total:492000, received:0, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：把費用金額跟收據傳上群組',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'陳怡蓉', pm:'伃媗', planner:'小邱',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'振詠', director:'DaBao', producer:'柏愷',
-    status:'pending', progress:'', start:'2025-08-06', renewals:0,
-    total:300000, received:0, rule:'開立條件：依照合約條件開立；付款條件：撥款日是15號、30號(頭款8/31付款)；備註：頭款需拆分成2家抬頭，且金額平分開立',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'鄭羽舒', pm:'姵潔', planner:'Tiffany',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'姍姍', producer:'柏愷',
-    status:'active', progress:'', start:'2025-08-13', renewals:0,
-    total:660000, received:456750, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：無',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'一家人', pm:'姵潔', planner:'家訓',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'伊之助', producer:'Min',
-    status:'active', progress:'', start:'2025-10-23', renewals:0,
-    total:540000, received:252000, rule:'開立條件：依照合約條件開立；付款條件：開發票後次月底付款；備註：無',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'法喬邱院長', pm:'Ashley', planner:'小邱',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'Leo', director:'伊之助', producer:'柏愷',
-    status:'waiting', progress:'', start:'2025-08-05', renewals:0,
-    total:360000, received:252000, rule:'開立條件：月初開立發票；付款條件： 當月發票於當月月底前付款；備註：發票品名需開立「資訊軟體服務費」',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'Sabrina', pm:'伃媗', planner:'小邱',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'Barry', producer:'家洋',
-    status:'pending', progress:'', start:'2025-08-21', renewals:0,
-    total:300000, received:252000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：無',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'FOOTER', pm:'伃媗', planner:'睿閎',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'Nic', producer:'Min',
-    status:'active', progress:'', start:'2025-08-06', renewals:0,
-    total:900000, received:630000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：無',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'Shannon', pm:'Ashley', planner:'小邱',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'羽瑄', director:'姍姍', producer:'柏愷',
-    status:'active', progress:'', start:'2025-08-29', renewals:0,
-    total:492000, received:379890, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：無',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'歐特儀', pm:'姵潔', planner:'得人',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'Leo', director:'Barry', producer:'Min',
-    status:'pending', progress:'', start:'2025-09-10', renewals:0,
-    total:360000, received:126000, rule:'開立條件：依照合約條件開立；付款條件：月結 60 日；備註：無',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'麗彤生醫', pm:'姵潔', planner:'小邱',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'姍姍', producer:'Min',
-    status:'active', progress:'', start:'2025-08-28', renewals:0,
-    total:552000, received:366645, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：一次付清享97折',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'城中牙醫', pm:'Ashley', planner:'睿閎',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'Leo', director:'Barry', producer:'Min',
-    status:'waiting', progress:'', start:'2025-09-03', renewals:0,
-    total:349200, received:366660, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：專案享97折；城中牙醫_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'Welly SEO', pm:'姵潔', planner:'伊之助',
-    publisher:'', pm_asst:'',
-    sr_editor:'', director:'', producer:'',
-    status:'active', progress:'', start:'', renewals:0,
-    total:360000, received:0, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：個人戶開紙本二聯式發票',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'植悅', pm:'Ashley', planner:'得人',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'羽瑄', director:'Barry', producer:'柏愷',
-    status:'waiting', progress:'', start:'2025-10-03', renewals:0,
-    total:360000, received:0, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：無；蒔心田生醫有限公司_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'米蘭時尚診所', pm:'Ashley', planner:'睿閎',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'姍姍', producer:'Min',
-    status:'waiting', progress:'', start:'2025-09-18', renewals:0,
-    total:360000, received:252000, rule:'開立條件：依照合約條件開立；付款條件：開發票後當月25日付款；備註：分潤客戶 / 首期於 10/25 前匯款；維美生技股份有限公司_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'群英醫學', pm:'姵潔', planner:'得人',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'羽瑄', director:'姍姍', producer:'Min',
-    status:'active', progress:'', start:'2025-10-21', renewals:0,
-    total:523800, received:549990, rule:'開立條件：依照合約條件開立；付款條件：固定每月25號匯款；備註：影片簽45支 / 無成效計費',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'維妮', pm:'Ashley', planner:'家訓',
-    publisher:'定哲', pm_asst:'珮瑜',
-    sr_editor:'振詠', director:'Barry', producer:'Min',
-    status:'waiting', progress:'', start:'2025-10-08', renewals:0,
-    total:300000, received:252000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：客戶通知「頭款」發票重新安排於11月開立，款項會於10/18前支付；澄靖國際工作坊_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'康普頓', pm:'姵潔', planner:'珍妮',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'Leo', director:'DaBao', producer:'Min',
-    status:'waiting', progress:'', start:'2025-10-07', renewals:0,
-    total:360000, received:252000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：無；康普頓生物科技有限公司_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'吳冠興醫師', pm:'伃媗', planner:'可盈',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'振詠', director:'姍姍', producer:'Min',
-    status:'waiting', progress:'', start:'2025-10-28', renewals:0,
-    total:360000, received:0, rule:'開立條件：依照合約條件開立（預計10月開頭款）；付款條件：開發票後90日內付款；備註：啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）；香港商高德美有限公司_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'武賞(極鶴和牛)', pm:'Ashley', planner:'忱平',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'伊之助', producer:'Min',
-    status:'waiting', progress:'', start:'2025-11-05', renewals:0,
-    total:300000, received:252000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）；武賞有限公司_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'何秋燕醫師', pm:'伃媗', planner:'小邱',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'振詠', director:'Nic', producer:'柏愷',
-    status:'active', progress:'', start:'2025-11-19', renewals:0,
-    total:360000, received:0, rule:'開立條件：依照合約條件開立（預計10月開頭款）；付款條件：開發票後90日內付款；備註：啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'北極星', pm:'伃媗', planner:'小邱',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'振詠', director:'伊之助', producer:'Min',
-    status:'waiting', progress:'', start:'2025-11-06', renewals:0,
-    total:360000, received:252000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'LOOP共享租車', pm:'岑文', planner:'又心',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'Nic', producer:'Min',
-    status:'active', progress:'', start:'2026-03-31', renewals:0,
-    total:360000, received:0, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：無；股感媒體科技股份有限公司_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'Lady Kelly', pm:'姵潔', planner:'可盈',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'姍姍', producer:'振詠',
-    status:'active', progress:'', start:'2026-03-04', renewals:0,
-    total:335232, received:351994, rule:'開立條件：依照合約條件開立；付款條件：開發票後次月底前付款；備註：非成效計費 / 分潤客戶(已內扣)；哇寶國際資訊股份有限公司_2fish_短影音代運營合約書.docx；32支 / 一次付清97折 / 分潤內扣10%',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'萬合未央', pm:'伃媗', planner:'小邱',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'振詠', director:'伊之助', producer:'柏愷',
-    status:'waiting', progress:'', start:'2025-11-20', renewals:0,
-    total:360000, received:252000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）；萬合未央室內裝修設計有限公司_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'天品集團', pm:'伃媗', planner:'Barry',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'Barry', producer:'Min',
-    status:'waiting', progress:'', start:'2025-12-01', renewals:0,
-    total:342855, received:240000, rule:'開立條件：依照合約條件開立（每期費用是含稅12萬）；付款條件：開發票後10日內付款；備註：啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）；天品聯合企業股份有限公司_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'髮速黑', pm:'Ashley', planner:'Barry',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'伊之助', producer:'柏愷',
-    status:'active', progress:'', start:'2025-11-27', renewals:0,
-    total:300000, received:0, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）；愛玥國際有限公司-2fish短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'魔法Kelly', pm:'Ashley', planner:'Ashley',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'振詠', director:'姍姍', producer:'Min',
-    status:'pending', progress:'', start:'2025-11-26', renewals:0,
-    total:300000, received:126000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'馬祖婆Amy', pm:'岑文', planner:'睿閎',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'羽瑄', director:'伊之助', producer:'柏愷',
-    status:'active', progress:'', start:'2025-12-29', renewals:0,
-    total:360000, received:252000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）；瑞琪寵物精品股份有限公司_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'精品派瑞莎', pm:'Ashley', planner:'家訓',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'DaBao', producer:'柏愷',
-    status:'pending', progress:'', start:'2025-12-10', renewals:0,
-    total:360000, received:126000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）；卓臻國際企業社_2fish_短影音代運營合約書..docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'蕭皓天醫師', pm:'Ashley', planner:'可盈',
-    publisher:'定哲', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'伊之助', producer:'Min',
-    status:'active', progress:'', start:'2025-12-05', renewals:0,
-    total:360000, received:0, rule:'開立條件：第1期啟動後開+第2期交付15支影片後開+第3期驗收後開；付款條件：開發票後90日內付款；備註：啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'喜家居', pm:'伃媗', planner:'睿閎',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'伊之助', producer:'Min',
-    status:'active', progress:'', start:'2025-12-16', renewals:0,
-    total:360000, received:0, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）；宜傢企業有限公司_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'金手指', pm:'姵潔', planner:'伊之助',
-    publisher:'定哲', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'伊之助', producer:'柏愷',
-    status:'active', progress:'', start:'2026-01-14', renewals:0,
-    total:300000, received:252000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）；琛玖創意行銷有限公司_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'富康藥局', pm:'伃媗', planner:'Sora',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'伊之助', producer:'柏愷',
-    status:'active', progress:'', start:'2026-01-07', renewals:0,
-    total:285000, received:239400, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）；富康活力醫藥股份有限公司_2fish_短影音代運營合約書.docx；合約總額享95折',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'鮮乳坊', pm:'姵潔', planner:'Leo',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'伊之助', producer:'柏愷',
-    status:'active', progress:'', start:'2026-01-16', renewals:0,
-    total:360000, received:366660, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：一次付清享97折',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'張英傑醫師', pm:'姵潔', planner:'伊之助',
-    publisher:'定哲', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'伊之助', producer:'Min',
-    status:'active', progress:'', start:'2025-12-22', renewals:0,
-    total:360000, received:252000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：；1. 分潤客戶；2. 啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'葛濤開運閣', pm:'姵潔', planner:'家訓',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'伊之助', producer:'Min',
-    status:'pending', progress:'', start:'2026-01-15', renewals:0,
-    total:0, received:0, rule:'—',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'城市家居', pm:'姵潔', planner:'得人',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'羽瑄', director:'姍姍', producer:'振詠',
-    status:'active', progress:'', start:'2026-01-27', renewals:0,
-    total:360000, received:252000, rule:'開立條件：依照合約條件開立；付款條件：開發票後30日內付款；備註：無；綠的國際企業股份有限公司 _2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'Demomo', pm:'Ashley', planner:'Jim',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'羽瑄', director:'', producer:'振詠',
-    status:'pending', progress:'', start:'2025-12-12', renewals:0,
-    total:0, received:0, rule:'—',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'17未來美', pm:'Ashley', planner:'可盈',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'伊之助', producer:'柏愷',
-    status:'active', progress:'', start:'2026-01-23', renewals:0,
-    total:360000, received:126000, rule:'開立條件：依照合約條件開立紙本二聯式發票；付款條件：開發票後10日內付款；備註：啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）；李苡齊_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'小慈醫師', pm:'伃媗', planner:'小邱',
-    publisher:'定哲', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'伊之助', producer:'柏愷',
-    status:'active', progress:'', start:'2026-01-29', renewals:0,
-    total:360000, received:252000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：無；黃盈慈_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'天麗生技', pm:'Ashley', planner:'家訓',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'伊之助', producer:'Min',
-    status:'active', progress:'', start:'2026-01-29', renewals:0,
-    total:360000, received:252000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）；鼎堅國際企業社_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'DTA電商', pm:'姵潔', planner:'Barry',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'伊之助', producer:'柏愷',
-    status:'active', progress:'', start:'2026-01-20', renewals:0,
-    total:300000, received:315000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：一次性付清(無任何折扣)，且無成效計費',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'二尾魚', pm:'姵潔', planner:'伊之助',
-    publisher:'', pm_asst:'',
-    sr_editor:'振詠', director:'DaBao', producer:'Min',
-    status:'active', progress:'', start:'', renewals:0,
-    total:0, received:0, rule:'—',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'裸美學', pm:'伃媗', planner:'小邱',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'姍姍', producer:'Min',
-    status:'active', progress:'', start:'2026-02-06', renewals:0,
-    total:360000, received:126000, rule:'開立條件：如下列舉；1. 啟動日後開頭款發票、10支影片交付後開第二期發票、驗收後開尾款；付款條件：開發票後10日內付款/第二期於驗收完10隻影片後支付；備註：啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'波賽頓', pm:'伃媗', planner:'得人',
-    publisher:'定哲', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'伊之助', producer:'柏愷',
-    status:'active', progress:'', start:'2026-02-24', renewals:0,
-    total:360000, received:126000, rule:'開立條件：依照合約條件開立，每月的請款金額未稅6萬，分六期支付，最後兩期則是預計在6月之後一期請款；付款條件：開發票後當月25日付款(每月固定匯款日為25號)；備註：無；波賽頓奈米科技有限公司_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'方潔醫師', pm:'Ashley', planner:'家訓',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'振詠', director:'姍姍', producer:'Min',
-    status:'active', progress:'', start:'2026-02-13', renewals:0,
-    total:360000, received:126000, rule:'開立條件：如下列舉；1. 開立二聯式發票(個人戶)；2. 啟動日後開頭款發票、10支影片交付後開第二期發票、驗收後開尾款；付款條件：開發票後10日內付款/第二期於驗收完10隻影片後支付；備註：啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'美髮Jessica', pm:'姵潔', planner:'伊之助',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'伊之助', producer:'Min',
-    status:'active', progress:'', start:'2026-01-29', renewals:0,
-    total:300000, received:252000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）；趙玟雲-二尾魚2Fish短影音廣告代運營報價單',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'路邊烤肉', pm:'伃媗', planner:'得人',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'伊之助', producer:'Min',
-    status:'active', progress:'', start:'2026-03-26', renewals:0,
-    total:360000, received:126000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：無；糞金龜國際有限公司_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'樂美選貨王', pm:'岑文', planner:'可盈',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'姍姍', producer:'Min',
-    status:'active', progress:'', start:'2026-03-12', renewals:0,
-    total:360000, received:252000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：分潤客戶；樂美國際有限公司_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'51Talk', pm:'Ashley', planner:'家訓',
-    publisher:'定哲', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'姍姍', producer:'Min',
-    status:'active', progress:'', start:'2026-03-04', renewals:0,
-    total:360000, received:252000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：無；新加坡商佳智科技股份有限公司_2fish_短影音代運營合約書.docx 的副本.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'悠活原力IP案', pm:'姵潔', planner:'家訓',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'DaBao', producer:'柏愷',
-    status:'active', progress:'', start:'2026-02-12', renewals:0,
-    total:0, received:0, rule:'—',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'[廣告案]悠活原力', pm:'姵潔', planner:'家訓',
-    publisher:'廣告案', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'DaBao', producer:'柏愷',
-    status:'active', progress:'', start:'2026-02-12', renewals:0,
-    total:300000, received:252000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：；1. 啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）；2. 分潤客戶；3. 有簽署保密協議；悠活原力股份有限公司_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'唐舖子', pm:'伃媗', planner:'小邱',
-    publisher:'定哲', pm_asst:'定哲',
-    sr_editor:'羽瑄', director:'DaBao', producer:'Min',
-    status:'pending', progress:'', start:'2026-03-11', renewals:0,
-    total:300000, received:126000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）；維喆禮坊股份有限公司_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'美奧國際', pm:'姵潔', planner:'常祐',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'姍姍', producer:'Leo',
-    status:'pending', progress:'', start:'2026-03-11', renewals:0,
-    total:360000, received:0, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：；1. 啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）；2. 分潤客戶；李奧國際股份有限公司_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'呂毅', pm:'岑文', planner:'睿閎',
-    publisher:'定哲', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'Nic', producer:'Min',
-    status:'active', progress:'', start:'2026-03-11', renewals:0,
-    total:360000, received:252000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：無；歐若那鋅顧問服務有限公司_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'台灣西卡', pm:'伃媗', planner:'睿閎',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'姍姍', producer:'柏愷',
-    status:'active', progress:'', start:'2026-03-26', renewals:0,
-    total:349200, received:244440, rule:'開立條件：依照合約條件開立(方案享97折)；付款條件：開發票後10日內付款；備註：；1. 啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）；2. 有額外簽署保密協議；3. 「尾款發票」跟「實報實銷的交通費發票」需分開開立；台灣西卡_2fish_短影音代運營合約書.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'双美', pm:'姵潔', planner:'常祐',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'姍姍', producer:'柏愷',
-    status:'pending', progress:'', start:'2026-03-27', renewals:0,
-    total:360000, received:126000, rule:'開立條件：依照合約條件開立；付款條件：開發票後於當月15號或30號付款 (以月結30天月底匯款為主)；備註：；1. 無成效計費；2. 15支影片交付後開立第二期發票；3. 尾款於驗收後開立',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'鹿港日蘊凡光', pm:'伃媗', planner:'睿閎',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'Nic', producer:'Min',
-    status:'active', progress:'', start:'2026-03-31', renewals:0,
-    total:330000, received:0, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：一次簽三間，尾款各少3萬',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'草屯非凡', pm:'岑文', planner:'又心',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'姍姍', producer:'柏愷',
-    status:'active', progress:'', start:'2026-03-25', renewals:0,
-    total:330000, received:126000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：一次簽三間，尾款各少3萬',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'[廣告案]碁富食品', pm:'姵潔', planner:'家訓',
-    publisher:'廣告案', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'DaBao', producer:'Min',
-    status:'pending', progress:'', start:'2026-03-26', renewals:0,
-    total:0, received:0, rule:'—',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'I Archery 射箭弓場', pm:'伃媗', planner:'得人',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'Nic', producer:'Min',
-    status:'active', progress:'', start:'2026-04-07', renewals:0,
-    total:360000, received:366660, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：一次性支付享97折',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'[廣告案]沛瑪醫美', pm:'伃媗', planner:'得人',
-    publisher:'廣告案', pm_asst:'',
-    sr_editor:'振詠', director:'姍姍', producer:'Min',
-    status:'pending', progress:'', start:'2026-04-01', renewals:0,
-    total:0, received:0, rule:'—',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'酒吧龍哥', pm:'伃媗', planner:'睿閎',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'Nic', producer:'柏愷',
-    status:'active', progress:'', start:'2026-04-13', renewals:0,
-    total:360000, received:252000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：合約異動諸多條款；『 NEW 3期收費模板 』（36萬)]寶健科技_2fish_短影音代運營合約書_調整確認',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'[廣告案]World Gym', pm:'伃媗', planner:'得人',
-    publisher:'廣告案', pm_asst:'',
-    sr_editor:'振詠', director:'姍姍', producer:'柏愷',
-    status:'pending', progress:'', start:'2026-03-27', renewals:0,
-    total:0, received:0, rule:'—',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'君綺黃永瀚醫師', pm:'伃媗', planner:'睿閎',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'Nic', producer:'Min',
-    status:'active', progress:'', start:'2026-04-09', renewals:0,
-    total:324000, received:0, rule:'開立條件：如下述（每月20日前開/共分4期）；1. 第1期：合約回簽後開立；2. 第2期：10支影片驗收後開立；3. 第3期：20支影片驗收後開立；4. 第4期：30支影片驗收後開立；付款條件：開發票後次月25日內付款；備註：如下述；1. 現有客戶推薦享9折優惠(等同於折10%分潤)；2. 無成效計費',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'君綺賴俊榮醫師', pm:'姵潔', planner:'得人',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'Nic', producer:'Min',
-    status:'active', progress:'', start:'2026-04-13', renewals:0,
-    total:324000, received:0, rule:'開立條件：依照合約條件開立；付款條件：開發票後次月25日內付款；備註：現有客戶推薦享9折優惠(等同於折10%分潤)',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'[廣告案]淡果香', pm:'Ashley', planner:'DaBao',
-    publisher:'廣告案', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'DaBao', producer:'柏愷',
-    status:'active', progress:'', start:'2026-04-14', renewals:0,
-    total:300000, received:315000, rule:'無',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'[廣告案]瑞軒留遊學', pm:'姵潔', planner:'家訓',
-    publisher:'廣告案', pm_asst:'恩綺',
-    sr_editor:'羽瑄', director:'DaBao', producer:'柏愷',
-    status:'active', progress:'', start:'2026-04-14', renewals:0,
-    total:492000, received:315000, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：無',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'[廣告]田園鮮生', pm:'Ashley', planner:'DaBao',
-    publisher:'', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'DaBao', producer:'柏愷',
-    status:'pending', progress:'', start:'2026-04-23', renewals:0,
-    total:0, received:0, rule:'—',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'皇家肉毒熊', pm:'Ashley', planner:'Vivian',
-    publisher:'廣告案', pm_asst:'',
-    sr_editor:'', director:'', producer:'',
-    status:'pending', progress:'', start:'', renewals:0,
-    total:0, received:0, rule:'—',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'[廣告]成大', pm:'姵潔', planner:'得人',
-    publisher:'廣告案', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'Nic', producer:'柏愷',
-    status:'active', progress:'', start:'2026-04-22', renewals:0,
-    total:0, received:0, rule:'—',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'南崁現代皮膚科診所', pm:'伃媗', planner:'睿閎',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'振詠', director:'Nic', producer:'柏愷',
-    status:'active', progress:'', start:'2026-04-30', renewals:0,
-    total:360000, received:0, rule:'開立條件：第一支影片上架後才能開請款；付款條件：開發票後90日內付款；備註：啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  },
-  {
-    name:'熊灝', pm:'伃媗', planner:'睿閎',
-    publisher:'恩綺', pm_asst:'恩綺',
-    sr_editor:'Leo', director:'Nic', producer:'柏愷',
-    status:'term', progress:'', start:'', renewals:0,
-    total:360000, received:0, rule:'開立條件：依照合約條件開立；付款條件：開發票後10日內付款；備註：；1. 啟動滿6個月，依據當前數據，開立尾款發票（若結案時達成額外目標，屆時再補收費）；2. 款項拆分為5期支付（第1期：啟動後當月月底前支付；第2期啟動後次月月底前支付：第3期啟動後第三個月底前支付；第4期啟動後第四個月底前支付；第5期尾款待PM通知後請款）-> 發票皆提前於付款前開立即可；熊灝有限公司_2fish_短影音代運營合約書.docx 的副本.docx',
-    video_demand:0, video_supply:0, last_published:null,
-    payments:[],
-  }
-];
-
-// ── 月趨勢資料（最近 6 個月） ──────────────────────────
-const monthlyTrend = {
-  labels: ['2026/01','2026/02','2026/03','2026/04','2026/05','2026/06'],
-  editing:  [52, 58, 62, 67, 70, 65],
-  shooting: [13, 16, 17, 19, 20, 18],
-  active:   [40, 42, 44, 46, 47, 47],
+// ── 資料（由 API 動態載入） ─────────────────────────────
+let projects = [];
+let monthlyTrend = {
+  labels: [], editing: [], shooting: [], active: [],
 };
 
 // ══════════════════════════════════════════════════════
@@ -1522,9 +639,68 @@ function go(id,btn){
   if(id==='p4') renderP4();
 }
 
+// ══════════════════════════════════════════════════════
+// 資料載入
+// ══════════════════════════════════════════════════════
+function setLoadMsg(msg) {
+  const el = document.getElementById('loading-msg');
+  if (el) el.textContent = msg;
+}
+
+async function loadData(forceRefresh) {
+  const overlay = document.getElementById('loading-overlay');
+  if (overlay) overlay.style.display = 'flex';
+
+  // 如果沒設定 API_URL，直接用內建資料（離線模式）
+  if (!API_URL) {
+    console.warn('未設定 API_URL，使用離線靜態資料');
+    if (overlay) overlay.style.display = 'none';
+    buildP1(); renderP2();
+    return;
+  }
+
+  try {
+    setLoadMsg('連線中…');
+    const url = API_URL + (forceRefresh ? '?refresh=1' : '');
+    const res  = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+
+    if (!json.ok) throw new Error(json.error || '未知錯誤');
+
+    const d = json.data;
+    projects = d.projects || [];
+    if (d.trend && d.trend.labels && d.trend.labels.length) {
+      monthlyTrend = d.trend;
+    }
+
+    // 顯示最後更新時間
+    const label = document.getElementById('today-label');
+    if (label && json.updated) {
+      const upd = new Date(json.updated);
+      label.innerHTML =
+        '截至 ' + upd.toLocaleDateString('zh-TW') +
+        ' &nbsp;<span style="font-size:11px;color:#94a3b8;">資料更新：' +
+        upd.toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}) +
+        '</span>';
+    }
+
+  } catch (err) {
+    console.error('API 載入失敗：', err);
+    // 顯示錯誤 banner，但仍嘗試顯示現有資料
+    const banner = document.createElement('div');
+    banner.style.cssText = 'background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:10px 20px;font-size:13px;text-align:center;';
+    banner.innerHTML = '⚠️ 無法從 Google Sheets 載入最新資料（' + err.message + '）。顯示上次快取資料。';
+    document.body.insertBefore(banner, document.body.firstChild);
+  }
+
+  if (overlay) overlay.style.display = 'none';
+  buildP1();
+  renderP2();
+}
+
 // init
-buildP1();
-renderP2();
+loadData(false);
 </script>
 </body>
 </html>
