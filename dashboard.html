@@ -598,6 +598,24 @@ function renderP4(){
   roles.forEach(role=>{
     const people=[...new Set(eligible.map(p=>p[role.field]).filter(Boolean))].sort();
 
+    // 計算這組各人的案件數，用於加總摘要
+    const summaryMap = {};
+    people.forEach(person=>{
+      const mine  = eligible.filter(p=>p[role.field]===person);
+      const total = mine.length;
+      const wait  = mine.filter(p=>p.status==='waiting').length;
+      const rwait = mine.filter(p=>p.status==='rwaiting').length;
+      summaryMap[person] = { total, active: total-wait-rwait };
+    });
+    const nonDep   = people.filter(p=>!departedMembers.includes(p));
+    const sumTotal  = nonDep.reduce((s,p)=>s+summaryMap[p].total,0);
+    const sumActive = nonDep.reduce((s,p)=>s+summaryMap[p].active,0);
+    const summaryChips = nonDep.map(p=>
+      `<span style="display:inline-flex;align-items:center;gap:4px;background:#f1f5f9;border-radius:6px;padding:2px 8px;font-size:12px;white-space:nowrap;">
+        <strong>${p}</strong><span style="color:#64748b;">${summaryMap[p].total}案${role.subtract?'（活躍'+summaryMap[p].active+'）':''}</span>
+      </span>`
+    ).join('');
+
     html+=`<div class="card" style="margin-bottom:20px;">
       <div class="role-head">
         <span class="role-name">${role.label}</span>
@@ -605,6 +623,13 @@ function renderP4(){
         ${role.subtract
           ? '<span class="role-hint">活躍數 = 案件總量 − 等結案 − 續約等結案</span>'
           : '<span class="role-hint">顯示案件總量（不扣除等結案）</span>'}
+      </div>
+      <div style="padding:10px 16px 12px;border-bottom:1px solid #f1f5f9;background:#fafbfc;display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+        <div style="font-size:12px;color:#64748b;padding-top:4px;white-space:nowrap;">
+          合計&nbsp;<strong style="color:#1e293b;font-size:14px;">${sumTotal}</strong>&nbsp;案
+          ${role.subtract?`｜活躍&nbsp;<strong style="color:#2563eb;font-size:14px;">${sumActive}</strong>&nbsp;案`:''}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">${summaryChips}</div>
       </div>
       <div class="tbl-wrap"><table>
         <thead><tr>
